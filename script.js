@@ -3,16 +3,17 @@ const usernameInput = document.getElementById("username-input");
 const postInput = document.getElementById("post-input");
 const postsDiv = document.getElementById("posts");
 
-// Load saved posts from localStorage when the page loads
-document.addEventListener("DOMContentLoaded", () => {
-    const savedPosts = JSON.parse(localStorage.getItem("posts")) || [];
-    savedPosts.forEach((post, index) => {
-        addPostToDOM(post.username, post.text, post.likes, index);
+// Load posts from Firestore in real-time
+db.collection("posts").orderBy("timestamp", "desc").onSnapshot(snapshot => {
+    postsDiv.innerHTML = ""; // Clear existing posts
+    snapshot.forEach(doc => {
+        const post = doc.data();
+        addPostToDOM(doc.id, post.username, post.text, post.likes);
     });
 });
 
 // Function to add a post to the DOM
-function addPostToDOM(username, postText, likes = 0, index) {
+function addPostToDOM(id, username, postText, likes = 0) {
     const newPost = document.createElement("div");
     newPost.classList.add("post");
     newPost.innerHTML = `
@@ -27,18 +28,14 @@ function addPostToDOM(username, postText, likes = 0, index) {
 
     // Handle like button click
     likeBtn.addEventListener("click", () => {
-        let savedPosts = JSON.parse(localStorage.getItem("posts")) || [];
-        savedPosts[index].likes += 1;
-        localStorage.setItem("posts", JSON.stringify(savedPosts));
-        likeBtn.innerText = `❤️ ${savedPosts[index].likes}`;
+        db.collection("posts").doc(id).update({
+            likes: firebase.firestore.FieldValue.increment(1)
+        });
     });
 
     // Handle delete button click
     deleteBtn.addEventListener("click", () => {
-        let savedPosts = JSON.parse(localStorage.getItem("posts")) || [];
-        savedPosts.splice(index, 1); // Remove from array
-        localStorage.setItem("posts", JSON.stringify(savedPosts));
-        newPost.remove();
+        db.collection("posts").doc(id).delete();
     });
 
     postsDiv.prepend(newPost);
@@ -50,12 +47,12 @@ postBtn.addEventListener("click", () => {
     const postText = postInput.value.trim();
 
     if (username !== "" && postText !== "") {
-        let savedPosts = JSON.parse(localStorage.getItem("posts")) || [];
-        savedPosts.unshift({ username, text: postText, likes: 0 });
-        localStorage.setItem("posts", JSON.stringify(savedPosts));
-
-        addPostToDOM(username, postText, 0, 0);
-
+        db.collection("posts").add({
+            username,
+            text: postText,
+            likes: 0,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
         postInput.value = ""; // Clear post input
     } else {
         alert("Username and post cannot be empty!");
